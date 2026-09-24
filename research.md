@@ -1,38 +1,138 @@
-# Blend Protocol Research
+# Research: Sub Rosa
+
+Live project page: https://usestellarwavehub.vercel.app/projects/sub-rosa-1788247664619
 
 ## Project Name
-Blend Protocol
 
-## Original Description
-Blend Protocol is a decentralized finance (DeFi) lending and borrowing platform built specifically for the Stellar network using Soroban smart contracts. Unlike traditional monolithic lending protocols that force all assets into a single shared risk pool, Blend introduces a permissionless, isolated lending pool architecture. This means anyone can create and deploy a custom lending market with specific assets, interest rate models, and oracle configurations, catering to both retail and institutional use cases without systemic contagion risk.
+Sub Rosa
 
-At its core, Blend addresses the critical need for robust, scalable financial infrastructure on Stellar. By leveraging Soroban's capabilities, it enables users to earn yield on their idle assets or borrow against collateral in a secure, decentralized manner. A standout feature of Blend's design is its mandatory "backstop module" for each pool. This module acts as an insurance fund seeded by pool creators, ensuring that lenders are protected against potential bad debt and insolvency events. If a pool suffers losses, the backstop automatically steps in to make suppliers whole, adding a significant layer of security compared to standard DeFi platforms.
+## Category
 
-Additionally, the protocol utilizes an algorithmic, reactive interest rate mechanism that dynamically adjusts borrowing costs based on real-time market utilization. This capital-efficient approach removes the need for slow governance votes to change rates, ensuring liquidity is optimized continuously. Overall, Blend serves as a foundational "DeFi primitive" on Stellar, bridging the gap between traditional finance (TradFi) institutions exploring blockchain and native Web3 users seeking yield generation and accessible credit.
+Infrastructure (DeFi-adjacent — sealed-bid coordination / auction primitives)
 
-## The Problem the Project Solves
-Blend solves the lack of a secure, customizable, and risk-isolated lending infrastructure on the Stellar network. Traditional shared-pool lending models expose all users to the failure of a single volatile asset. Blend mitigates this by isolating risk per pool and requiring mandatory insurance (backstops), while providing a permissionless environment for creating tailored financial products.
+## Tags
 
-## How the Project Uses Stellar
-Blend is built entirely on Stellar's Soroban smart contract platform. It utilizes Soroban's speed, low fees, and security to execute complex financial logic such as collateral valuation, interest calculation, and liquidations. It also integrates seamlessly with Stellar-based assets, including stablecoins like USDC and native XLM, to drive on-chain liquidity.
+soroban, sealed-bid, auctions, escrow, procurement, drand, commit-reveal, sdk
 
-## Its Technical Approach
-The protocol is written in Rust, leveraging the Soroban SDK. Its architecture is modular, separating core pool logic, factory contracts, and backstop modules. Creators can spin up customized pools via the factory contract. The system uses reactive interest rate models to programmatically adjust rates based on utilization, and it relies on decentralized oracles (like those deployed on Soroban) for real-time asset pricing. A comprehensive test suite and an open-source TypeScript SDK (`@blend-capital/blend-sdk`) enable developers to integrate Blend into wallets and dApps easily.
+## Links
 
-## Team and Community Information
-Blend Capital is the driving force behind the protocol, maintaining a strong open-source presence on GitHub. The community is active in the Stellar ecosystem, participating in hackathons and providing open infrastructure (like the Blend SDK and utilities) to help other developers build on Soroban.
+- Repo (Wave-approved): https://github.com/karagozemin/Sub-Rosa
+- Site/docs: https://www.sub-rosa.online/#/docs
+- npm SDK: https://www.npmjs.com/package/@sub-rosa/sdk
+- Skill doc (own integration reference): https://raw.githubusercontent.com/karagozemin/Sub-Rosa/main/skills/sub-rosa/SKILL.md
+- Listed in Stellar's community skills directory: https://skills.stellar.org
 
-## Verified Soroban Contract ID
-`CD25MNVTZDL4Y3XBCPCJXGXATV5WUHHOWMYFF4YBEGU5FCPGMYTVG5JY` (Blend Core Soroban Contract)
+## Verified Stellar/Soroban identifier
 
-## Category and Relevant Tags
-**Category:** DeFi
-**Tags:** Lending, Borrowing, Soroban, Smart Contracts, Yield, Financial Inclusion
+**Contract ID (Stellar mainnet / "public" network):**
+`CDQOFNCJE5Z4ZZL76DU5652FOUKJVEIZWHFGCZVWH63UYBGPSZIPC325`
 
-## Supporting Screenshots
-![Blend Protocol GitHub Org](https://github.com/blend-capital.png)
+Verified via stellar.expert:
+https://stellar.expert/explorer/public/contract/CDQOFNCJE5Z4ZZL76DU5652FOUKJVEIZWHFGCZVWH63UYBGPSZIPC325
+
+## Original description
+
+Sub Rosa is infrastructure for running sealed, time-locked coordination
+rounds on Stellar — sealed-bid auctions, confidential procurement or RFP
+rounds, and similar processes where participants need to commit to a bid or
+proposal privately and have it revealed only at a predetermined, publicly
+verifiable moment. Rather than building an end-user marketplace, it ships as
+an embeddable SDK (`@sub-rosa/sdk`) that other Stellar applications import
+to run these rounds themselves.
+
+The protocol offers two modes. `Auction` handles cases where a Stellar
+payment asset is being exchanged for a Stellar-based lot asset: the lot is
+custodied at round creation, bids are sealed and later revealed, and
+settlement — paying the seller, transferring the lot to the winner, and
+refunding losing bidders — happens atomically in one settlement call.
+`ReceiptOnly` is for cases where no asset custody is needed at all, such as
+confidential procurement or judging rounds, and produces a verifiable
+receipt rather than moving funds.
+
+Timing is anchored to the Drand randomness beacon (specifically its
+`quicknet` network) rather than Stellar ledger numbers, so a round's reveal
+window is tied to an externally verifiable, unpredictable trigger instead of
+an operator-controlled clock. The lifecycle — open, reveal, clear, and (for
+auctions) settle — is designed to be run permissionlessly by independent
+"keepers," with retry-safe reveal calls and a grace-period void/recovery
+path if a round stalls.
+
+Notably, the project's own documentation is explicit that its "Core v2"
+contracts have testnet proofs and a capped-mainnet deployment but have not
+yet had an independent funds-handling audit, and instructs integrators to
+keep participant and value caps in place until that happens — an unusually
+candid security disclosure for a project at this stage.
+
+## Problem it solves
+
+Auctions, procurement rounds, and similar processes often need bids or
+proposals to stay private until a fair, tamper-resistant reveal moment.
+Doing this correctly on-chain (sealed commitment, externally-verifiable
+timing, atomic settlement, safe recovery if something stalls) is nontrivial
+to build from scratch for every app that needs it; Sub Rosa packages that
+logic as a reusable primitive.
+
+## How it uses Stellar
+
+- Round state, commitments, and settlement logic run as a Soroban smart
+  contract deployed on mainnet (see verified contract ID above).
+- Auction-mode settlement moves Stellar assets (via Stellar Asset Contract/SAC)
+  atomically between custody, seller, and winner in a single transaction.
+- Reveal timing is derived from the Drand quicknet beacon rather than
+  Stellar ledger sequence numbers, decoupling the "when" from the chain's
+  own block cadence while still executing on Stellar.
+
+## Technical approach
+
+- SDK-first design: integrators are pointed to high-level templates
+  (`createAssetAuctionRound`, `createSealedProposalRound`) rather than
+  raw contract calls, with lower-level packages (`@sub-rosa/tlock`,
+  `@sub-rosa/round-bindings`) available for protocol-level work.
+- Strict deployment-tuple pinning (RPC URL + network passphrase + contract
+  ID + expected WASM hash) with a client-side precheck before any operation,
+  to prevent cross-network contract-ID mixups.
+- Every wallet-signed action goes through a `preflight*V2` simulation step
+  before a signature is requested, and typed errors/fee estimates are
+  surfaced on failure rather than asking the user to blind-sign.
+- Lifecycle is explicitly permissionless: reveals are per-participant and
+  idempotent (safe to retry), a public "keeper" role advances round state,
+  and there's a documented grace-period `voidV2` path for stalled rounds.
+- Exports a canonical, independently-verifiable "Core v2 receipt"
+  (`exportReceiptV2`/`verifyReceiptV2`) for off-chain proof of round
+  outcomes, separate from raw transaction hashes.
+
+## Team / community
+
+Maintained under the GitHub handle `karagozemin`. No public team page,
+company entity, or additional named contributors found — appears to be a
+small/solo-maintainer open-source project at this stage. Listed in Stellar's
+official community skills directory (skills.stellar.org) and built as part
+of the "Build On Stellar Hackathon – IBW 2026" cohort, per the Drips Wave
+repo listing.
 
 ## Sources
-- https://blend.capital/
-- https://github.com/blend-capital/blend-contracts
-- https://docs.blend.capital/
+
+1. https://github.com/karagozemin/Sub-Rosa (repo, Wave-approval listing text)
+2. https://raw.githubusercontent.com/karagozemin/Sub-Rosa/main/skills/sub-rosa/SKILL.md
+   (project's own integration/security reference doc — primary technical source)
+3. https://skills.stellar.org (confirms inclusion in Stellar's official
+   community skills directory, with SDK feature summary)
+4. https://www.npmjs.com/package/@sub-rosa/sdk (published SDK package)
+5. https://www.drips.network/wave/stellar/repos (confirms Wave Program
+   approval status and hackathon origin)
+6. https://stellar.expert/explorer/public/contract/CDQOFNCJE5Z4ZZL76DU5652FOUKJVEIZWHFGCZVWH63UYBGPSZIPC325
+   (on-chain contract verification — checked directly in-browser)
+
+## Screenshots
+
+### npm package page
+
+![Sub Rosa npm package](./sub-rosa/npm-page.png)
+
+### SKILL.md — Auction vs ReceiptOnly modes
+
+![Sub Rosa mode table](./sub-rosa/skill-md-table.png)
+
+### Verified contract on Stellar Expert
+
+![Sub Rosa contract on stellar.expert](./sub-rosa/stellar-expert-contract.png)
